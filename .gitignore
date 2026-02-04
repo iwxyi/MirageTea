@@ -1,0 +1,51 @@
+# Dependencies
+*.p.lock
+package-lock.json
+pubspec.lock
+
+# IDE
+.idea/
+.vscode/
+*.code-workspace
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build
+build/
+.dart_tool/
+*.freezed.dart
+*.g.dart
+*.iml
+
+# Test
+coverage/
+
+# Assets
+assets/fonts/*
+!assets/fonts/.gitkeep
+
+# Flutter (old plugin system)
+.flutter-plugins
+.flutter-plugins-dependencies
+
+# macOS
+macos/Pods/
+macos/Podfile.lock
+macos/Flutter/ephemeral/
+
+# iOS
+ios/Pods/
+ios/Podfile.lock
+ios/Flutter/ephemeral/
+
+# Linux
+linux/Flutter/ephemeral/
+windows/Flutter/ephemeral/
+
+# IDE - JetBrains
+*.iml
+.idea/

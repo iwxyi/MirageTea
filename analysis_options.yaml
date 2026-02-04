@@ -1,0 +1,33 @@
+include: package:flutter_lints/flutter.yaml
+
+linter:
+  rules:
+    - prefer_const_constructors
+    - prefer_const_declarations
+    - avoid_print
+    - prefer_interpolation_to_compose_strings
+    - prefer_final_locals
+    - avoid_function_literals_in_foreach_calls
+    - use_enums
+    - prefer_generic_function_type_aliases
+    - sort_constructors_first
+    - sort_unnamed_constructors_first
+    - avoid_classes_with_only_static_members
+    - prefer_expression_function_bodies
+    - cascade_invocations
+    - unnecessary_this
+    - unnecessary_null_aware_assignments
+    - prefer_null_aware_method_calls
+    - prefer_collection_literals
+    - prefer_spread_collections
+    - unnecessary_new
+    - prefer_initializing_formals
+    - always_declare_return_types
+    - annotate_overrides
+    - prefer_typing_uninitialized_variables
+    - avoid_init_to_null
+    - prefer_conditional_assignment
+    - prefer_const_literals_to_create_immutables
+    - prefer_is_empty
+    - prefer_is_not_empty
+

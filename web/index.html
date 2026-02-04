@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>虚境茶话会</title>
+  <base href="$FLUTTER_BASE_HREF">
+  <meta name="description" content="一个让多个AI人格坐在一起喝茶聊天的神奇空间">
+  
+  <!-- iOS meta tags & icons -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-title" content="虚境茶话会">
+  <link rel="apple-touch-icon" href="icons/Icon-192.png">
+  
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="favicon.png">
+  
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background-color: #FAF8F5;
+      font-family: 'Noto Sans SC', -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+    
+    .loading-container {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+    }
+    
+    .loading-text {
+      font-size: 24px;
+      color: #6B4E71;
+      margin-top: 20px;
+    }
+    
+    .tea-cup {
+      font-size: 64px;
+      animation: bounce 1s infinite;
+    }
+    
+    @keyframes bounce {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-20px); }
+    }
+    
+    .progress-bar {
+      width: 200px;
+      height: 4px;
+      background-color: #E0E0E0;
+      border-radius: 2px;
+      margin-top: 20px;
+      overflow: hidden;
+    }
+    
+    .progress-fill {
+      height: 100%;
+      background-color: #6B4E71;
+      width: 0%;
+      animation: loading 2s ease-in-out infinite;
+    }
+    
+    @keyframes loading {
+      0% { width: 0%; }
+      50% { width: 70%; }
+      100% { width: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <div class="loading-container">
+    <div class="tea-cup">🍵</div>
+    <div class="loading-text">虚境茶话会</div>
+    <div class="progress-bar">
+      <div class="progress-fill"></div>
+    </div>
+  </div>
+  
+  <script src="flutter.js" defer></script>
+</body>
+</html>
+
