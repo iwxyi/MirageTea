@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:math';
-import 'package:flutter/foundation.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:mirage_tea/core/models/chat_models.dart';
 import 'memory_service.dart';
@@ -104,7 +103,7 @@ class ConversationScheduler {
     if (_currentGroupId == null) return;
     
     final groupState = _getGroupState(_currentGroupId!);
-    final agentIds = groupState['agentIds'] as List<String>;
+    final agentIds = List<String>.from(groupState['agentIds'] as List);
     
     // 选择下一个发言者
     final speakerId = await _selectNextSpeaker(agentIds);
@@ -116,7 +115,7 @@ class ConversationScheduler {
     }
     
     // 获取发言紧迫性
-    final urgency = await _calculateSpeakingUrgency(speakerId, agentIds);
+    await _calculateSpeakingUrgency(speakerId, agentIds);
     
     // 生成响应
     final response = await _generateResponse(speakerId);

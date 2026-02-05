@@ -1,38 +1,34 @@
-import 'package:flutter/material.dart';
-import 'package:hive_flutter/hive_flutter.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:mirage_tea/core/services/memory_service.dart';
-import 'package:mirage_tea/core/services/relationship_service.dart';
-import 'package:mirage_tea/core/services/culture_service.dart';
-import 'package:mirage_tea/core/services/civilization_service.dart';
-import 'package:mirage_tea/core/services/conversation_scheduler.dart';
-import 'package:mirage_tea/core/services/ai_model_manager.dart';
+import 'package:mirage_tea/core/managers/settings_manager.dart';
+import 'package:mirage_tea/core/managers/agent_manager.dart';
+import 'package:mirage_tea/core/managers/chat_group_manager.dart';
 
+/// 服务初始化器 - 应用启动时初始化所有服务
 class ServicesInitializer {
+  /// 初始化所有服务
   static Future<void> initialize() async {
-    // 初始化Hive数据库
-    await _initHive();
-    
-    // 初始化各服务
-    await _initServices();
-  }
-  
-  static Future<void> _initHive() async {
-    final documentsDir = await getApplicationDocumentsDirectory();
-    await Hive.initFlutter(documentsDir.path);
-    
-    // 注册Hive适配器
-    // TODO: 添加更多Adapter
-  }
-  
-  static Future<void> _initServices() async {
-    // 初始化各服务
-    await MemoryService.initialize();
-    await RelationshipService.initialize();
-    await CultureService.initialize();
-    await CivilizationService.initialize();
-    await ConversationScheduler.initialize();
-    await AIModelManager.initialize();
+    try {
+      print('[初始化] 开始初始化服务...');
+
+      // 1. 初始化配置系统（最先，其他服务依赖配置）
+      await SettingsManager.initialize();
+      print('[初始化] ✓ SettingsManager');
+
+      // 2. 初始化 AI 模型管理器
+      // 注意：配置已由 SettingsManager 管理，AIModelManager 不再需要独立的 Hive box
+      print('[初始化] ✓ AIModelManager');
+
+      // 3. 初始化 Agent Manager
+      await AgentManager.initialize();
+      print('[初始化] ✓ AgentManager');
+
+      // 4. 初始化 Chat Group Manager
+      await ChatGroupManager.initialize();
+      print('[初始化] ✓ ChatGroupManager');
+
+      print('[初始化] 所有服务初始化完成！');
+    } catch (e) {
+      print('[初始化] 初始化失败: $e');
+      rethrow;
+    }
   }
 }
-

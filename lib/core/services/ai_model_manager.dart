@@ -2,72 +2,105 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
-import 'package:hive_flutter/hive_flutter.dart';
+import 'package:mirage_tea/core/managers/settings_manager.dart';
 import 'package:mirage_tea/core/models/agent_models.dart';
 
 /// AI模型管理器 - 封装各种AI模型的API调用
+/// 
+/// 注意：所有配置存储已迁移到 SettingsManager
 class AIModelManager {
-  static const String _baseConfigBoxName = 'ai_config';
-  
-  static Box<Map<String, dynamic>>? _configBox;
-  
-  // API配置
-  static final Map<String, APIConfig> _apiConfigs = {
+  // ==================== 服务商配置 ====================
+
+  /// 服务商配置定义
+  static final Map<String, APIConfig> _providerConfigs = {
     'openai': APIConfig(
       baseUrl: 'https://api.openai.com/v1',
-      models: ['gpt-4', 'gpt-4-turbo', 'gpt-3.5-turbo'],
+      models: ['gpt-4o', 'gpt-4-turbo', 'gpt-4', 'gpt-3.5-turbo'],
     ),
     'anthropic': APIConfig(
       baseUrl: 'https://api.anthropic.com/v1',
-      models: ['claude-3-opus-20240229', 'claude-3-sonnet-20240229', 'claude-3-haiku-20240307'],
+      models: ['claude-3-5-sonnet-20241022', 'claude-3-opus-20240229', 'claude-3-sonnet-20240229'],
+    ),
+    'deepseek': APIConfig(
+      baseUrl: 'https://api.deepseek.com',
+      models: ['deepseek-chat', 'deepseek-reasoner'],
     ),
     'google': APIConfig(
       baseUrl: 'https://generativelanguage.googleapis.com/v1',
-      models: ['gemini-pro', 'gemini-ultra'],
+      models: ['gemini-1.5-pro', 'gemini-1.5-flash', 'gemini-1.0-pro'],
     ),
-    'deepseek': APIConfig(
-      baseUrl: 'https://api.deepseek.com/v1',
-      models: ['deepseek-chat'],
+    'custom': APIConfig(
+      baseUrl: '',
+      models: [],
     ),
   };
-  
-  static Future<void> initialize() async {
-    await Hive.openBox<Map<String, dynamic>>(_baseConfigBoxName);
-    _configBox = Hive.box<Map<String, dynamic>>(_baseConfigBoxName);
+
+  /// 获取所有服务商列表
+  static List<Map<String, dynamic>> getProviders() {
+    return [
+      {'id': 'openai', 'name': 'OpenAI (GPT)', 'models': _providerConfigs['openai']!.models},
+      {'id': 'anthropic', 'name': 'Anthropic (Claude)', 'models': _providerConfigs['anthropic']!.models},
+      {'id': 'deepseek', 'name': 'DeepSeek', 'models': _providerConfigs['deepseek']!.models},
+      {'id': 'google', 'name': 'Google (Gemini)', 'models': _providerConfigs['google']!.models},
+      {'id': 'custom', 'name': '自定义', 'models': []},
+    ];
   }
-  
-  /// 获取可用的模型列表
-  static List<String> getAvailableModels() {
-    return _apiConfigs.values.expand((c) => c.models).toList();
+
+  /// 获取服务商配置
+  static APIConfig? getProviderConfig(String provider) {
+    return _providerConfigs[provider];
   }
-  
-  /// 获取API配置
-  static APIConfig? getAPIConfig(String provider) {
-    return _apiConfigs[provider];
+
+  // ==================== 配置访问（使用 SettingsManager） ====================
+
+  /// 获取当前选中的服务商
+  static String get currentProvider => SettingsManager.aiProvider;
+
+  /// 获取当前选中的模型
+  static String get currentModel => SettingsManager.aiModel;
+
+  /// 获取当前 API 地址
+  static String get currentApiUrl => SettingsManager.aiApiUrl;
+
+  /// 获取当前 API Key
+  static String? get currentApiKey => SettingsManager.getApiKey(currentProvider);
+
+  /// 获取当前完整配置（供外部使用）
+  static Map<String, dynamic> get currentConfig {
+    final provider = currentProvider;
+    final providerConfig = getProviderConfig(provider);
+    final isCustom = provider == 'custom';
+    
+    return {
+      'provider': provider,
+      'model': currentModel,
+      'apiUrl': isCustom ? currentApiUrl : (providerConfig?.baseUrl ?? ''),
+      'apiKey': currentApiKey ?? '',
+      'isCustom': isCustom,
+      'availableModels': providerConfig?.models ?? [],
+    };
   }
-  
-  /// 保存API密钥
-  static Future<void> saveAPIKey(String provider, String apiKey) async {
-    await _configBox!.put('api_key_$provider', {'key': apiKey});
+
+  /// 判断是否已完整配置
+  static bool get isConfigured {
+    final apiKey = currentApiKey;
+    return apiKey != null && apiKey.isNotEmpty && currentModel.isNotEmpty;
   }
-  
-  /// 获取API密钥
-  static String? getAPIKey(String provider) {
-    return _configBox?.get('api_key_$provider')?['key'];
-  }
-  
-  /// 生成响应
+
+  // ==================== 响应生成 ====================
+
+  /// 生成响应（使用当前配置）
   static Future<String> generateResponse({
     required String agentId,
     required String groupId,
     required Map<String, dynamic> context,
   }) async {
     // TODO: 实现实际的AI API调用
-    // 这里返回模拟响应用于开发测试
-    
     return _generateMockResponse(agentId, context);
   }
-  
+
+  // ==================== 提示词构建 ====================
+
   /// 生成提示词
   static String buildPrompt({
     required AIAgent agent,
@@ -75,7 +108,6 @@ class AIModelManager {
   }) {
     final sb = StringBuffer();
     
-    // 系统提示
     sb.writeln('你是 ${agent.name}。');
     sb.writeln('性格特征: ${agent.personality.traits.join(', ')}。');
     sb.writeln('说话风格: ${agent.personality.speakingStyles.join(', ')}。');
@@ -92,7 +124,6 @@ class AIModelManager {
       sb.writeln('常用语: ${agent.personality.catchphrases.join(', ')}。');
     }
     
-    // 添加对话历史
     final messages = context['messages'] as List?;
     if (messages != null && messages.isNotEmpty) {
       sb.writeln('\n最近的对话：');
@@ -101,7 +132,6 @@ class AIModelManager {
       }
     }
     
-    // 添加记忆
     final memories = context['relevantMemories'] as List?;
     if (memories != null && memories.isNotEmpty) {
       sb.writeln('\n相关记忆：');
@@ -110,7 +140,6 @@ class AIModelManager {
       }
     }
     
-    // 添加文明状态
     final civilizationState = context['civilizationState'];
     if (civilizationState != null) {
       sb.writeln('\n当前文明状态：');
@@ -122,8 +151,10 @@ class AIModelManager {
     
     return sb.toString();
   }
-  
-  /// 调用OpenAI API
+
+  // ==================== API 调用方法 ====================
+
+  /// 调用 OpenAI API
   static Future<String> callOpenAI({
     required String model,
     required String apiKey,
@@ -132,9 +163,8 @@ class AIModelManager {
     int maxTokens = 1000,
   }) async {
     final dio = Dio();
-    
     final response = await dio.post(
-      '${_apiConfigs['openai']!.baseUrl}/chat/completions',
+      '${_providerConfigs['openai']!.baseUrl}/chat/completions',
       options: Options(
         headers: {
           'Authorization': 'Bearer $apiKey',
@@ -151,11 +181,10 @@ class AIModelManager {
     
     final data = response.data as Map<String, dynamic>;
     final content = data['choices']?[0]?['message']?['content'] ?? '';
-    
     return content;
   }
-  
-  /// 调用Anthropic API
+
+  /// 调用 Anthropic API
   static Future<String> callAnthropic({
     required String model,
     required String apiKey,
@@ -164,9 +193,8 @@ class AIModelManager {
     int maxTokens = 1000,
   }) async {
     final dio = Dio();
-    
     final response = await dio.post(
-      '${_apiConfigs['anthropic']!.baseUrl}/messages',
+      '${_providerConfigs['anthropic']!.baseUrl}/messages',
       options: Options(
         headers: {
           'x-api-key': apiKey,
@@ -184,20 +212,18 @@ class AIModelManager {
     
     final data = response.data as Map<String, dynamic>;
     final content = data['completion'] ?? '';
-    
     return content;
   }
-  
-  /// 调用Google Gemini API
+
+  /// 调用 Google Gemini API
   static Future<String> callGemini({
     required String model,
     required String apiKey,
     required String prompt,
   }) async {
     final dio = Dio();
-    
     final response = await dio.post(
-      '${_apiConfigs['google']!.baseUrl}/models/$model:generateContent',
+      '${_providerConfigs['google']!.baseUrl}/models/$model:generateContent',
       queryParameters: {'key': apiKey},
       options: Options(
         headers: {'Content-Type': 'application/json'},
@@ -211,11 +237,10 @@ class AIModelManager {
     
     final data = response.data as Map<String, dynamic>;
     final content = data['candidates']?[0]?['content']?['parts']?[0]?['text'] ?? '';
-    
     return content;
   }
-  
-  /// 调用DeepSeek API
+
+  /// 调用 DeepSeek API
   static Future<String> callDeepSeek({
     required String model,
     required String apiKey,
@@ -224,9 +249,8 @@ class AIModelManager {
     int maxTokens = 1000,
   }) async {
     final dio = Dio();
-    
     final response = await dio.post(
-      '${_apiConfigs['deepseek']!.baseUrl}/chat/completions',
+      '${_providerConfigs['deepseek']!.baseUrl}/chat/completions',
       options: Options(
         headers: {
           'Authorization': 'Bearer $apiKey',
@@ -243,10 +267,40 @@ class AIModelManager {
     
     final data = response.data as Map<String, dynamic>;
     final content = data['choices']?[0]?['message']?['content'] ?? '';
-    
     return content;
   }
-  
+
+  /// 调用自定义 API
+  static Future<String> callCustom({
+    required String apiUrl,
+    required String model,
+    required String apiKey,
+    required List<Map<String, String>> messages,
+    double temperature = 0.7,
+    int maxTokens = 1000,
+  }) async {
+    final dio = Dio();
+    final response = await dio.post(
+      '$apiUrl/chat/completions',
+      options: Options(
+        headers: {
+          'Authorization': 'Bearer $apiKey',
+          'Content-Type': 'application/json',
+        },
+      ),
+      data: {
+        'model': model,
+        'messages': messages,
+        'temperature': temperature,
+        'max_tokens': maxTokens,
+      },
+    );
+    
+    final data = response.data as Map<String, dynamic>;
+    final content = data['choices']?[0]?['message']?['content'] ?? '';
+    return content;
+  }
+
   /// 模拟响应（用于开发测试）
   static String _generateMockResponse(String agentId, Map<String, dynamic> context) {
     final responses = [
@@ -269,4 +323,3 @@ class APIConfig {
   
   APIConfig({required this.baseUrl, required this.models});
 }
-

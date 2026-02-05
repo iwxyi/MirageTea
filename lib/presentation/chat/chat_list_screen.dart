@@ -355,18 +355,17 @@ class _CreateGroupFormState extends State<CreateGroupForm> {
           style: Theme.of(context).textTheme.titleMedium,
         ),
         const SizedBox(height: 8),
-        Expanded(
-          child: GridView.builder(
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 3,
-              childAspectRatio: 0.8,
-              crossAxisSpacing: 8,
-              mainAxisSpacing: 8,
-            ),
+        SizedBox(
+          height: 56,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
             itemCount: 4,
             itemBuilder: (context, index) {
               final agentNames = ['思考者', '探索者', '吟游诗人', '评论家'];
-              return _buildAgentCard(context, agentNames[index], index);
+              return Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: _buildAgentChip(context, agentNames[index], index),
+              );
             },
           ),
         ),
@@ -385,7 +384,7 @@ class _CreateGroupFormState extends State<CreateGroupForm> {
     );
   }
   
-  Widget _buildAgentCard(BuildContext context, String name, int index) {
+  Widget _buildAgentChip(BuildContext context, String name, int index) {
     final isSelected = _selectedAgents.contains(name);
     
     return GestureDetector(
@@ -399,38 +398,48 @@ class _CreateGroupFormState extends State<CreateGroupForm> {
         });
       },
       child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
           border: Border.all(
             color: isSelected 
                 ? Theme.of(context).colorScheme.primary 
-                : Colors.grey,
+                : Colors.grey.shade300,
             width: isSelected ? 2 : 1,
           ),
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(20),
           color: isSelected 
               ? Theme.of(context).colorScheme.primary.withOpacity(0.1)
-              : null,
+              : Colors.transparent,
         ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
             CircleAvatar(
-              radius: 24,
-              backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-              child: Text(name.isNotEmpty ? name[0] : '?'),
+              radius: 12,
+              backgroundColor: Theme.of(context).colorScheme.primary,
+              child: Text(
+                name[0],
+                style: const TextStyle(
+                  fontSize: 10,
+                  color: Colors.white,
+                ),
+              ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(width: 8),
             Text(
               name,
-              style: Theme.of(context).textTheme.bodyMedium,
-              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+              ),
             ),
-            if (isSelected)
+            if (isSelected) ...[
+              const SizedBox(width: 4),
               Icon(
                 Icons.check_circle,
                 color: Theme.of(context).colorScheme.primary,
                 size: 16,
               ),
+            ],
           ],
         ),
       ),

@@ -4,10 +4,8 @@ import 'package:mirage_tea/core/managers/chat_group_manager.dart';
 import 'package:mirage_tea/core/managers/agent_manager.dart';
 import 'package:mirage_tea/core/models/chat_models.dart';
 import 'package:mirage_tea/core/models/agent_models.dart';
-import 'package:mirage_tea/core/services/civilization_service.dart';
-import 'package:mirage_tea/core/theme/animations.dart';
 import 'package:mirage_tea/core/theme/mirage_tea_theme.dart';
-
+import 'package:mirage_tea/presentation/chat/chat_group_settings_screen.dart';
 
 /// 群聊详情页（核心页面）
 class ChatDetailScreen extends ConsumerStatefulWidget {
@@ -56,22 +54,20 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(_group?.name ?? '群聊'),
-            if (_group?.currentTopic != null)
-              Text(
-                _group!.currentTopic!,
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-          ],
+        title: Text(
+          _group?.name ?? '群聊',
+          style: const TextStyle(fontSize: 18),
+        ),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.of(context).pop(),
         ),
         actions: [
           _buildStateIndicator(),
+          const SizedBox(width: 8),
           IconButton(
-            icon: const Icon(Icons.more_vert),
-            onPressed: () => _showMoreOptions(context),
+            icon: const Icon(Icons.more_horiz),
+            onPressed: () => _openGroupSettings(context),
           ),
         ],
       ),
@@ -91,16 +87,8 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen>
               ],
             ),
           ),
-          
-          // AI成员面板（桌面端显示）
-          if (false)
-            _buildAgentPanel(context),
         ],
       ),
-      // 控制面板
-      endDrawer: Drawer(
-              child: _buildAgentPanel(context),
-            ),
     );
   }
   
@@ -135,6 +123,14 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen>
     );
   }
   
+  void _openGroupSettings(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => ChatGroupSettingsScreen(groupId: widget.groupId),
+      ),
+    );
+  }
+  
   Widget _buildMessageList(BuildContext context) {
     if (_messages.isEmpty) {
       return Center(
@@ -157,7 +153,7 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen>
             FilledButton.icon(
               onPressed: _startConversation,
               icon: const Icon(Icons.play_arrow),
-              label: Text('开始对话'),
+              label: const Text('开始对话'),
             ),
           ],
         ),
@@ -340,177 +336,8 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen>
     );
   }
   
-  Widget _buildAgentPanel(BuildContext context) {
-    return Container(
-      width: 300,
-      decoration: BoxDecoration(
-        border: Border(
-          left: BorderSide(
-            color: Theme.of(context).dividerColor.withOpacity(0.1),
-          ),
-        ),
-      ),
-      child: Column(
-        children: [
-          // 控制按钮
-          _buildControlButtons(context),
-          const Divider(),
-          
-          // AI成员列表
-          Expanded(
-            child: _buildAgentList(context),
-          ),
-          
-          // 文明状态
-          _buildCivilizationPanel(context),
-        ],
-      ),
-    );
-  }
-  
-  Widget _buildControlButtons(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: [
-          FilledButton.icon(
-            onPressed: _isRunning ? _pauseConversation : _startConversation,
-            icon: Icon(_isRunning ? Icons.pause : Icons.play_arrow),
-            label: Text(_isRunning ? '暂停对话' : '开始对话'),
-            style: FilledButton.styleFrom(
-              backgroundColor: _isRunning ? Colors.orange : Colors.green,
-            ),
-          ),
-          OutlinedButton.icon(
-            onPressed: _stopConversation,
-            icon: const Icon(Icons.stop),
-            label: Text('停止对话'),
-          ),
-        ],
-      ),
-    );
-  }
-  
-  Widget _buildAgentList(BuildContext context) {
-    if (_group == null || _group!.agentIds.isEmpty) {
-      return Center(
-        child: Text(
-          '还没有添加AI茶友',
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-            color: Colors.grey,
-          ),
-        ),
-      );
-    }
-    
-    return ListView.builder(
-      padding: const EdgeInsets.all(8),
-      itemCount: _group!.agentIds.length,
-      itemBuilder: (context, index) {
-        return FutureBuilder<AIAgent?>(
-          future: _getAgent(_group!.agentIds[index]),
-          builder: (context, snapshot) {
-            final agent = snapshot.data;
-            return Card(
-              margin: const EdgeInsets.only(bottom: 8),
-              child: ListTile(
-                leading: CircleAvatar(
-                  backgroundColor: MirageTeaTheme.getAgentColor(
-                    _group!.agentIds[index],
-                  ),
-                  child: Text(
-                    agent?.name[0] ?? _group!.agentIds[index][0],
-                    style: const TextStyle(color: Colors.white),
-                  ),
-                ),
-                title: Text(agent?.name ?? '未知AI'),
-                subtitle: Text(
-                  agent?.personality.traits.join(', ') ?? '',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                trailing: const Icon(Icons.more_vert),
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-  
-  Widget _buildCivilizationPanel(BuildContext context) {
-    final civState = CivilizationService.getCivilizationState(widget.groupId);
-    if (civState == null) return const SizedBox.shrink();
-    
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceVariant,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            '🏛️ 文明状态',
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              _buildEraIndicator(civState.era),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('时代 ${civState.era}'),
-                    LinearProgressIndicator(
-                      value: civState.awakeningLevel,
-                      minHeight: 6,
-                      borderRadius: BorderRadius.circular(3),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            '消息数: ${civState.totalMessages}',
-            style: Theme.of(context).textTheme.bodySmall,
-          ),
-        ],
-      ),
-    );
-  }
-  
-  Widget _buildEraIndicator(int era) {
-    final colors = MirageTeaTheme.eraColors;
-    final labels = ['原始', '启蒙', '繁荣', '黄金', '永恒'];
-    
-    return Container(
-      width: 40,
-      height: 40,
-      decoration: BoxDecoration(
-        color: colors[era],
-        shape: BoxShape.circle,
-      ),
-      child: Center(
-        child: Text(
-          era.toString(),
-          style: const TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-      ),
-    );
-  }
-  
   Future<AIAgent?> _getAgent(String agentId) async {
-    // TODO: 从AgentManager获取
-    return null;
+    return AgentManager.getAgent(agentId);
   }
   
   String _formatTime(DateTime time) {
@@ -544,36 +371,4 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen>
     // TODO: 发送消息
     _messageController.clear();
   }
-  
-  void _showMoreOptions(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      builder: (context) => Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          ListTile(
-            leading: const Icon(Icons.group_add),
-            title: const Text('添加AI茶友'),
-            onTap: () {},
-          ),
-          ListTile(
-            leading: const Icon(Icons.settings),
-            title: const Text('群聊设置'),
-            onTap: () {},
-          ),
-          ListTile(
-            leading: const Icon(Icons.save),
-            title: const Text('导出对话'),
-            onTap: () {},
-          ),
-          ListTile(
-            leading: const Icon(Icons.delete, color: Colors.red),
-            title: const Text('删除群聊', style: TextStyle(color: Colors.red)),
-            onTap: () {},
-          ),
-        ],
-      ),
-    );
-  }
 }
-
