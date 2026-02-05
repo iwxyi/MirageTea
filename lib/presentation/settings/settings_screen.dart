@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:dio/dio.dart';
 import 'package:mirage_tea/core/managers/settings_manager.dart';
 import 'package:mirage_tea/core/theme/theme_controller.dart';
+import 'package:mirage_tea/core/utils/ai_generator.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -87,9 +89,16 @@ class _AISectionWithStateState extends State<_AISectionWithState> {
 
   /// 获取默认模型
   String _getDefaultModel(String provider) {
-    final providerData = widget.providers.firstWhere((p) => p['id'] == provider, orElse: () => widget.providers[0]);
-    final models = (providerData['models'] as List<dynamic>).cast<String>();
-    return models.isNotEmpty ? models[0] : '';
+    try {
+      final providerData = widget.providers.firstWhere(
+        (p) => p['id'] == provider,
+      );
+      final models = (providerData['models'] as List<dynamic>).cast<String>();
+      return models.isNotEmpty ? models[0] : '';
+    } catch (_) {
+      // 如果找不到，返回空字符串
+      return '';
+    }
   }
 
   /// 自动保存配置（用户修改后自动调用）
@@ -346,7 +355,54 @@ class _AISectionWithStateState extends State<_AISectionWithState> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
-                    // 测试按钮
+                    // 基础网络测试按钮
+                    TextButton.icon(
+                      onPressed: () async {
+                        showDialog(
+                          context: context,
+                          barrierDismissible: false,
+                          builder: (dialogContext) => AlertDialog(
+                            title: const Text('测试网络连接'),
+                            content: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Text('正在测试基础网络连接...'),
+                                const SizedBox(height: 16),
+                                const LinearProgressIndicator(),
+                                const SizedBox(height: 16),
+                                const Text('尝试连接: www.baidu.com', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                              ],
+                            ),
+                          ),
+                        );
+
+                        final result = await _testBasicNetwork();
+
+                        if (mounted) {
+                          Navigator.of(context).pop();
+                          if (result) {
+                            _showTestResultDialog(
+                              context,
+                              success: true,
+                              message: '网络连接正常',
+                              details: '基础网络连接成功！\n可以访问外部网站。\n\n问题可能出在:\n1. API 地址被墙\n2. 需要配置代理\n3. API 服务商限制',
+                            );
+                          } else {
+                            _showTestResultDialog(
+                              context,
+                              success: false,
+                              message: '网络连接失败',
+                              errorCode: 'NETWORK_ERROR',
+                              details: '无法访问外部网站。\n\n请检查:\n1. 网络连接是否正常\n2. 防火墙设置\n3. 代理配置',
+                            );
+                          }
+                        }
+                      },
+                      icon: const Icon(Icons.public),
+                      label: const Text('测试网络'),
+                    ),
+                    const SizedBox(width: 8),
+                    // 测试AI连接按钮
                     FilledButton.icon(
                       onPressed: () => _testAIConnection(
                         context,
@@ -367,10 +423,41 @@ class _AISectionWithStateState extends State<_AISectionWithState> {
     );
   }
 
-  void _testAIConnection(BuildContext context, {required String provider, required String model}) {
-    // 获取API地址
-    final apiUrl = apiUrlController.text.trim();
-    final apiKey = apiKeyController.text.trim();
+  /// 测试基础网络连接（百度）
+  Future<bool> _testBasicNetwork() async {
+    try {
+      print('[网络测试] 尝试连接 https://www.baidu.com...');
+      final dio = Dio();
+      dio.options.connectTimeout = const Duration(seconds: 10);
+      dio.options.receiveTimeout = const Duration(seconds: 10);
+      
+      final response = await dio.get(
+        'https://www.baidu.com',
+        options: Options(responseType: ResponseType.plain),
+      );
+      
+      print('[网络测试] 百度连接成功，状态码: ${response.statusCode}');
+      return response.statusCode == 200;
+    } catch (e) {
+      print('[网络测试] 百度连接失败: $e');
+      return false;
+    }
+  }
+
+  void _testAIConnection(BuildContext context, {required String provider, required String model}) async {
+    // 获取API地址 - 优先使用输入框的值，否则使用保存的值
+    final inputApiUrl = apiUrlController.text.trim();
+    final apiUrl = inputApiUrl.isNotEmpty ? inputApiUrl : SettingsManager.aiApiUrl;
+
+    // 获取API Key - 优先使用输入框的值，否则使用保存的值
+    final inputApiKey = apiKeyController.text.trim();
+    final apiKey = inputApiKey.isNotEmpty ? inputApiKey : (SettingsManager.getApiKey(provider) ?? '');
+
+    // 如果没有 API Key，显示错误
+    if (apiKey.isEmpty) {
+      _showErrorDialog('API Key 未配置', '请先在下方输入框中配置 $provider 的 API Key');
+      return;
+    }
 
     // 生成API URL
     String requestUrl = '';
@@ -432,71 +519,78 @@ class _AISectionWithStateState extends State<_AISectionWithState> {
       ),
     );
 
-    Future.delayed(const Duration(seconds: 3), () {
-      final random = DateTime.now().millisecond % 3;
+    // 执行真正的API调用
+    try {
+      final result = await AIGenerator.testConnection(
+        provider: provider,
+        model: model,
+        apiUrl: apiUrl,
+        apiKey: apiKey,
+      );
 
-      if (random == 0) {
+      if (mounted) {
+        Navigator.of(context).pop();
         print('[AI测试]');
         print('[AI测试] 【响应结果】✓ 成功');
-        print('[AI测试]   status: 200 OK');
-        print('[AI测试]   首字符延迟: ~1500ms');
-        print('[AI测试]   完整响应时间: ~2500ms');
-        print('[AI测试]');
+        print('[AI测试]   响应长度: ${result.length}字符');
         print('[AI测试] ═══════════════════════════════════════════════════');
-        Navigator.of(context).pop();
         _showTestResultDialog(
           context,
           success: true,
           message: '连接成功！',
-          details: 'AI模型响应正常，可以正常使用。\n\n服务商: $provider\n模型: $model\nAPI URL: $requestUrl\n\n响应时间: 约2.5秒',
-        );
-      } else if (random == 1) {
-        print('[AI测试]');
-        print('[AI测试] 【响应结果】✗ 失败');
-        print('[AI测试]   status: 401 Unauthorized');
-        print('[AI测试]   错误类型: 认证失败');
-        print('[AI测试]');
-        print('[AI测试] 【详细分析】');
-        print('[AI测试]   API Key验证失败，可能原因:');
-        print('[AI测试]   1. API Key格式不正确');
-        print('[AI测试]   2. API Key已过期或已被撤销');
-        print('[AI测试]   3. API Key没有访问该模型的权限');
-        print('[AI测试]   4. 对于DeepSeek等服务商，需要确认账号是否已开通');
-        print('[AI测试]');
-        print('[AI测试] ═══════════════════════════════════════════════════');
-        Navigator.of(context).pop();
-        _showTestResultDialog(
-          context,
-          success: false,
-          message: '连接失败 (401)',
-          errorCode: '401 Unauthorized',
-          details: 'API密钥认证失败。\n\n请求信息:\n- 服务商: $provider\n- 模型: $model\n- API URL: $requestUrl\n\n错误详情:\nAPI返回401状态码，表示API Key无效或权限不足。\n\n可能原因:\n1. API Key填写错误\n2. API Key已过期\n3. API Key没有该模型的访问权限\n4. 对于DeepSeek等服务商，需要确认账号是否已开通\n\n建议:\n- 检查API Key是否正确复制（注意前后空格）\n- 确认API Key是否有效\n- 确认该API Key有访问所选模型的权限',
-        );
-      } else {
-        print('[AI测试]');
-        print('[AI测试] 【响应结果】✗ 超时');
-        print('[AI测试]   status: TIMEOUT');
-        print('[AI测试]   错误类型: 网络超时');
-        print('[AI测试]');
-        print('[AI测试] 【详细分析】');
-        print('[AI测试]   网络请求超时，可能原因:');
-        print('[AI测试]   1. 网络连接不稳定');
-        print('[AI测试]   2. API地址配置错误');
-        print('[AI测试]   3. 服务商服务器不可用');
-        print('[AI测试]   4. 被防火墙/代理拦截');
-        print('[AI测试]   5. 跨域(CORS)问题（自定义API时）');
-        print('[AI测试]');
-        print('[AI测试] ═══════════════════════════════════════════════════');
-        Navigator.of(context).pop();
-        _showTestResultDialog(
-          context,
-          success: false,
-          message: '连接超时',
-          errorCode: 'TIMEOUT (>30s)',
-          details: '无法连接到AI服务商，请求超时。\n\n请求信息:\n- 服务商: $provider\n- 模型: $model\n- API URL: $requestUrl\n\n错误详情:\n请求在30秒内未得到响应。\n\n可能原因:\n1. 网络连接问题\n2. API地址配置错误\n3. 服务商服务不可用\n4. 被防火墙/代理拦截\n5. 跨域(CORS)问题（自定义API时）\n\n建议:\n- 检查网络连接\n- 确认API地址是否正确\n- 尝试使用VPN（如果需要）\n- 检查自定义API的CORS配置',
+          details: 'AI模型响应正常，可以正常使用。\n\n服务商: $provider\n模型: $model\nAPI URL: $requestUrl',
         );
       }
-    });
+    } catch (e) {
+      if (mounted) {
+        Navigator.of(context).pop();
+        print('[AI测试] 【响应结果】✗ 失败');
+        print('[AI测试]   错误: $e');
+        print('[AI测试] ═══════════════════════════════════════════════════');
+
+        String errorMessage = e.toString();
+        String errorCode = '';
+        String details = '';
+
+        if (errorMessage.contains('401') || errorMessage.contains('Unauthorized')) {
+          errorCode = '401 Unauthorized';
+          details = 'API密钥认证失败。\n\n请求信息:\n- 服务商: $provider\n- 模型: $model\n- API URL: $requestUrl\n\n错误详情:\nAPI返回401状态码，表示API Key无效或权限不足。\n\n可能原因:\n1. API Key填写错误\n2. API Key已过期\n3. API Key没有该模型的访问权限\n4. 对于DeepSeek等服务商，需要确认账号是否已开通\n\n建议:\n- 检查API Key是否正确复制（注意前后空格）\n- 确认API Key是否有效\n- 确认该API Key有访问所选模型的权限';
+        } else if (errorMessage.contains('timeout') || errorMessage.contains('TIMEOUT')) {
+          errorCode = 'TIMEOUT';
+          details = '无法连接到AI服务商，请求超时。\n\n请求信息:\n- 服务商: $provider\n- 模型: $model\n- API URL: $requestUrl\n\n错误详情:\n请求在30秒内未得到响应。\n\n可能原因:\n1. 网络连接问题\n2. API地址配置错误\n3. 服务商服务不可用\n4. 被防火墙/代理拦截\n\n建议:\n- 检查网络连接\n- 确认API地址是否正确\n- 尝试使用VPN（如果需要）';
+        } else if (errorMessage.contains('API Key')) {
+          errorCode = '认证错误';
+          details = 'API Key 未正确配置。\n\n$errorMessage\n\n请检查：\n1. API Key 是否填写正确\n2. 是否选择了正确的服务商';
+        } else {
+          details = '连接AI服务商时发生错误。\n\n错误信息:\n$errorMessage\n\n请求信息:\n- 服务商: $provider\n- 模型: $model\n- API URL: $requestUrl';
+        }
+
+        _showTestResultDialog(
+          context,
+          success: false,
+          message: errorCode.isNotEmpty ? '连接失败 ($errorCode)' : '连接失败',
+          errorCode: errorCode.isNotEmpty ? errorCode : null,
+          details: details,
+        );
+      }
+    }
+  }
+
+  /// 显示错误对话框
+  void _showErrorDialog(String title, String content) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(title, style: const TextStyle(color: Colors.red)),
+        content: Text(content),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('确定'),
+          ),
+        ],
+      ),
+    );
   }
 
   void _showTestResultDialog(

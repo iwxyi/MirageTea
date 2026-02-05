@@ -3,9 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mirage_tea/core/managers/agent_manager.dart';
 import 'package:mirage_tea/core/managers/chat_group_manager.dart';
 import 'package:mirage_tea/core/models/agent_models.dart';
-import 'package:mirage_tea/core/models/chat_models.dart';
 import 'package:mirage_tea/core/theme/mirage_tea_theme.dart';
-import 'package:mirage_tea/core/theme/responsive_layout.dart';
 import 'agent_parameter_editor_screen.dart';
 
 
@@ -128,7 +126,14 @@ class AgentLibraryContent extends ConsumerWidget {
           ),
           const SizedBox(height: 24),
           FilledButton.icon(
-            onPressed: () => Navigator.of(context).pushNamed('/create-agent'),
+            onPressed: () {
+              print('[AgentLibrary] 点击创建角色按钮');
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => const AgentParameterEditorScreen(isCreating: true),
+                ),
+              );
+            },
             icon: const Icon(Icons.add),
             label: const Text('创建角色模板'),
           ),
@@ -254,9 +259,6 @@ class AgentLibraryContent extends ConsumerWidget {
   
   Widget _buildParamsSection(BuildContext context, AIAgent agent) {
     final params = agent.parameters;
-    if (params == null) {
-      return const SizedBox.shrink();
-    }
     
     final items = <String>[];
     

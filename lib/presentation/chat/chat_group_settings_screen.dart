@@ -160,7 +160,7 @@ class _ChatGroupSettingsScreenState extends ConsumerState<ChatGroupSettingsScree
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                'AI茶友 (${_agents.length})',
+                '群成员 (${_agents.length})',
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
                   color: Colors.grey[600],
                 ),
@@ -185,12 +185,19 @@ class _ChatGroupSettingsScreenState extends ConsumerState<ChatGroupSettingsScree
             ],
           ),
         ),
-        Wrap(
-          spacing: 16,
-          runSpacing: 16,
+        // 网格布局显示群成员
+        GridView.count(
+          shrinkWrap: true,
+          crossAxisCount: itemsPerRow,
+          mainAxisSpacing: 16,
+          crossAxisSpacing: 8,
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          physics: const NeverScrollableScrollPhysics(),
           children: [
+            // 显示群成员
             ...visibleAgents.map((agent) => _buildAgentGridItem(context, agent)),
-            if (_agents.isNotEmpty) _buildAddAgentButton(context),
+            // 始终显示添加按钮
+            _buildAddAgentButton(context),
           ],
         ),
       ],
@@ -398,51 +405,94 @@ class _ChatGroupSettingsScreenState extends ConsumerState<ChatGroupSettingsScree
     final allAgents = AgentManager.getAllAgents();
     final existingIds = _agents.map((a) => a.id).toSet();
     final availableAgents = allAgents.where((a) => !existingIds.contains(a.id)).toList();
+    
+    // 用于追踪选中的Agent
+    final selectedAgents = <String>{};
 
     showModalBottomSheet(
       context: context,
-      builder: (context) => Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Text(
-              '添加AI茶友',
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-          ),
-          if (availableAgents.isEmpty)
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
             Padding(
-              padding: const EdgeInsets.all(32),
-              child: Text(
-                '没有可添加的AI角色',
-                style: TextStyle(color: Colors.grey[500]),
-              ),
-            )
-          else
-            Expanded(
-              child: ListView.builder(
-                itemCount: availableAgents.length,
-                itemBuilder: (context, index) {
-                  final agent = availableAgents[index];
-                  return ListTile(
-                    leading: CircleAvatar(
-                      backgroundColor: Colors.blue,
-                      child: Text(agent.name[0]),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    '添加群成员',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  if (selectedAgents.isNotEmpty)
+                    FilledButton(
+                      onPressed: () async {
+                        Navigator.of(context).pop();
+                        for (final agentId in selectedAgents) {
+                          await ChatGroupManager.addAgent(widget.groupId, agentId);
+                        }
+                        _loadGroup();
+                        _loadAgents();
+                      },
+                      child: Text('添加 (${selectedAgents.length})'),
+                    )
+                  else
+                    TextButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: const Text('取消'),
                     ),
-                    title: Text(agent.name),
-                    subtitle: Text(agent.description),
-                    onTap: () async {
-                      Navigator.of(context).pop();
-                      await ChatGroupManager.addAgent(widget.groupId, agent.id);
-                      _loadGroup();
-                      _loadAgents();
-                    },
-                  );
-                },
+                ],
               ),
             ),
-        ],
+            if (availableAgents.isEmpty)
+              Padding(
+                padding: const EdgeInsets.all(32),
+                child: Text(
+                  '没有可添加的AI角色',
+                  style: TextStyle(color: Colors.grey[500]),
+                ),
+              )
+            else
+              Expanded(
+                child: ListView.builder(
+                  itemCount: availableAgents.length,
+                  itemBuilder: (context, index) {
+                    final agent = availableAgents[index];
+                    final isSelected = selectedAgents.contains(agent.id);
+                    return ListTile(
+                      leading: CircleAvatar(
+                        backgroundColor: _parseAgentColor(agent.avatar),
+                        child: Text(agent.name[0]),
+                      ),
+                      title: Text(agent.name),
+                      subtitle: Text(agent.description),
+                      trailing: Checkbox(
+                        value: isSelected,
+                        onChanged: (value) {
+                          setState(() {
+                            if (value == true) {
+                              selectedAgents.add(agent.id);
+                            } else {
+                              selectedAgents.remove(agent.id);
+                            }
+                          });
+                        },
+                      ),
+                      onTap: () {
+                        setState(() {
+                          if (isSelected) {
+                            selectedAgents.remove(agent.id);
+                          } else {
+                            selectedAgents.add(agent.id);
+                          }
+                        });
+                      },
+                    );
+                  },
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }

@@ -3,6 +3,9 @@ import 'mirage_tea_theme.dart';
 
 /// 动画扩展组件
 class Animations {
+  /// 私有构造函数，防止实例化
+  Animations._();
+
   // 淡入动画
   static Widget fadeIn({
     required Widget child,

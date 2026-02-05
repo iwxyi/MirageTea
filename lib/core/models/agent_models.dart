@@ -157,6 +157,80 @@ class AgentParameters extends HiveObject {
     );
   }
 
+  /// 转换为 AgentPersonality
+  AgentPersonality toPersonalityTraits() {
+    return AgentPersonality(
+      traits: _generateTraitsFromParams(),
+      speakingStyles: [speakingStyle],
+      catchphrases: [],
+      expertise: expertiseAreas,
+      backgroundStory: '',
+    );
+  }
+
+  /// 根据参数生成性格特征描述
+  List<String> _generateTraitsFromParams() {
+    final traits = <String>[];
+    
+    // 根据开放性
+    if (openness > 0.5) {
+      traits.add('开放思维');
+    } else if (openness < -0.5) {
+      traits.add('保守传统');
+    }
+    
+    // 根据理性度
+    if (rationality > 0.5) {
+      traits.add('理性冷静');
+    } else if (rationality < -0.5) {
+      traits.add('感性热情');
+    }
+    
+    // 根据秩序偏好
+    if (orderPreference > 0.5) {
+      traits.add('条理清晰');
+    } else if (orderPreference < -0.5) {
+      traits.add('随性自由');
+    }
+    
+    // 根据社交能量
+    if (socialEnergy > 0.7) {
+      traits.add('外向活泼');
+    } else if (socialEnergy < 0.3) {
+      traits.add('内向安静');
+    }
+    
+    // 根据合作意愿
+    if (cooperation > 0.7) {
+      traits.add('团队协作');
+    } else if (cooperation < 0.3) {
+      traits.add('独立自主');
+    }
+    
+    // 根据共情能力
+    if (empathy > 0.7) {
+      traits.add('善解人意');
+    } else if (empathy < 0.3) {
+      traits.add('客观理性');
+    }
+    
+    // 根据专业深度
+    if (expertiseDepth > 0.7) {
+      traits.add('专业精深');
+    } else if (expertiseDepth < 0.3) {
+      traits.add('博学多才');
+    }
+    
+    // 根据创造力
+    if (creativity > 0.7) {
+      traits.add('富有创意');
+    } else if (creativity < 0.3) {
+      traits.add('务实稳重');
+    }
+    
+    return traits;
+  }
+
   Map<String, dynamic> toJson() {
     return {
       'openness': openness,
@@ -383,6 +457,9 @@ class AgentTemplate extends HiveObject {
 
 // 预设模板常量
 class PresetTemplates {
+  /// 私有构造函数，防止实例化
+  PresetTemplates._();
+
   static const List<Map<String, dynamic>> templates = [
     {'id': 'scholar', 'name': '学者型', 'description': '理性、深思熟虑', 'icon': '🎓', 'color': Colors.blue},
     {'id': 'artist', 'name': '艺术家型', 'description': '感性、富有创造力', 'icon': '🎨', 'color': Colors.purple},

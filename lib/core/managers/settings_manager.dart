@@ -27,6 +27,20 @@ class SettingsManager {
     // 初始化 Hive（如果尚未初始化）
     await Hive.initFlutter();
 
+    // 清除旧的不兼容数据
+    try {
+      if (await Hive.boxExists(_settingsBoxName)) {
+        await Hive.deleteBoxFromDisk(_settingsBoxName);
+        print('[SettingsManager] 已清除旧的不兼容设置数据');
+      }
+      if (await Hive.boxExists(_secureBoxName)) {
+        await Hive.deleteBoxFromDisk(_secureBoxName);
+        print('[SettingsManager] 已清除旧的密钥数据');
+      }
+    } catch (e) {
+      print('[SettingsManager] 清除旧数据失败: $e');
+    }
+
     await Hive.openBox<Map<String, dynamic>>(_settingsBoxName);
     _settingsBox = Hive.box<Map<String, dynamic>>(_settingsBoxName);
 
@@ -53,14 +67,50 @@ class SettingsManager {
     print('[SettingsManager] 设置已保存: $key = $value');
   }
 
-  /// 读取设置（通用方法）
+  /// 读取设置（通用方法 - 基础类型）
   static T? get<T>(String key, {T? defaultValue}) {
     final box = _isSecureKey(key) ? _secureBox : _settingsBox;
-    final value = box?.get(key)?['value'];
-    if (value == null) return defaultValue;
     try {
-      return value as T;
+      final value = box?.get(key);
+      if (value == null) return defaultValue;
+
+      // 如果是 Map 类型，尝试获取 'value' 字段
+      if (value is Map) {
+        final innerValue = value['value'];
+        if (innerValue == null) return defaultValue;
+        if (innerValue is T && innerValue is! Map) {
+          return innerValue;
+        }
+        return defaultValue;
+      }
+
+      // 直接返回 value（排除 Map 类型）
+      if (value is T && value is! Map) {
+        return value as T;
+      }
+
+      return defaultValue;
     } catch (e) {
+      print('[SettingsManager] 读取设置失败: $key, 错误: $e');
+      return defaultValue;
+    }
+  }
+
+  /// 读取设置（返回动态类型，用于复杂类型）
+  static dynamic getDynamic(String key, {dynamic defaultValue}) {
+    final box = _isSecureKey(key) ? _secureBox : _settingsBox;
+    try {
+      final value = box?.get(key);
+      if (value == null) return defaultValue;
+
+      // 如果是 Map 类型，尝试获取 'value' 字段
+      if (value is Map) {
+        return value['value'] ?? defaultValue;
+      }
+
+      return value;
+    } catch (e) {
+      print('[SettingsManager] 读取设置失败: $key, 错误: $e');
       return defaultValue;
     }
   }

@@ -3,6 +3,7 @@ import 'package:mirage_tea/core/managers/agent_manager.dart';
 import 'package:mirage_tea/core/managers/chat_group_manager.dart';
 import 'package:mirage_tea/core/models/agent_models.dart';
 import 'package:mirage_tea/core/theme/mirage_tea_theme.dart';
+import 'package:mirage_tea/core/utils/ai_generator.dart';
 
 /// AI角色参数编辑器页面 - 卡片式折叠设计
 class AgentParameterEditorScreen extends StatefulWidget {
@@ -42,6 +43,10 @@ class _AgentParameterEditorScreenState
   final _nameController = TextEditingController();
   final _descriptionController = TextEditingController();
   final _customExpertiseController = TextEditingController();
+
+  // AI名字建议列表和当前选中的建议
+  List<String> _nameSuggestions = [];
+  String? _selectedNameSuggestion;
 
   // AI配置控制器
   final _modelController = TextEditingController();
@@ -414,13 +419,69 @@ class _AgentParameterEditorScreenState
   }
 
   Widget _buildNameField() {
-    return TextField(
-      controller: _nameController,
-      decoration: const InputDecoration(
-        labelText: '角色名称',
-        border: OutlineInputBorder(),
-        prefixIcon: Icon(Icons.badge),
-      ),
+    // 如果没有建议，直接显示普通输入框
+    if (_nameSuggestions.isEmpty) {
+      return TextField(
+        controller: _nameController,
+        decoration: const InputDecoration(
+          labelText: '角色名称',
+          border: OutlineInputBorder(),
+          prefixIcon: Icon(Icons.badge),
+          hintText: '输入角色名称，或先填写介绍后点击AI生成',
+        ),
+        onChanged: (_) => setState(() {}),
+      );
+    }
+
+    // 有建议时，使用输入框 + 下拉选择
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: TextField(
+            controller: _nameController,
+            decoration: const InputDecoration(
+              labelText: '角色名称',
+              border: OutlineInputBorder(),
+              prefixIcon: Icon(Icons.badge),
+            ),
+            onChanged: (value) {
+              _selectedNameSuggestion = null;
+              setState(() {});
+            },
+          ),
+        ),
+        const SizedBox(width: 8),
+        SizedBox(
+          height: 56,
+          child: InputDecorator(
+            decoration: const InputDecoration(
+              border: OutlineInputBorder(),
+              contentPadding: EdgeInsets.symmetric(horizontal: 12),
+            ),
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<String>(
+                value: _selectedNameSuggestion,
+                hint: const Text('建议'),
+                isExpanded: false,
+                items: _nameSuggestions.map((suggestion) {
+                  return DropdownMenuItem<String>(
+                    value: suggestion,
+                    child: Text(suggestion, maxLines: 1, overflow: TextOverflow.ellipsis),
+                  );
+                }).toList(),
+                onChanged: (value) {
+                  if (value != null) {
+                    _nameController.text = value;
+                    _selectedNameSuggestion = value;
+                    setState(() {});
+                  }
+                },
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -439,6 +500,7 @@ class _AgentParameterEditorScreenState
   }
 
   Widget _buildGenerateButton() {
+    // 名字或介绍至少要有一个
     final name = _nameController.text.trim();
     final description = _descriptionController.text.trim();
     final canGenerate = name.isNotEmpty || description.isNotEmpty;
@@ -457,7 +519,7 @@ class _AgentParameterEditorScreenState
     );
   }
 
-  /// AI生成角色参数
+  /// AI生成角色参数（使用真实AI API）
   void _generateAgentParams() async {
     final name = _nameController.text.trim();
     final description = _descriptionController.text.trim();
@@ -471,48 +533,75 @@ class _AgentParameterEditorScreenState
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        title: const Text('AI智能生成'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text('正在调用AI生成角色参数...'),
-            const SizedBox(height: 16),
-            const LinearProgressIndicator(),
-            const SizedBox(height: 16),
-          ],
-        ),
+      builder: (context) => _AIGeneratingDialog(
+        onCancel: () => Navigator.of(context).pop(),
       ),
     );
 
     try {
-      // 构建AI生成提示词（实际项目中用于调用AI API）
-      // 提示词示例：
-      // "你是一个AI角色生成助手，根据用户输入的角色描述生成参数配置..."
-      await Future.delayed(const Duration(seconds: 2));
-
-      // 模拟生成结果
-      _simulateGenerateResult();
+      // 调用真实的AI生成
+      final result = await AIGenerator.generateAgentParameters(
+        name: name,
+        description: description,
+        onProgress: (message) {
+          print('[AI生成] $message');
+        },
+      );
 
       if (mounted) {
         Navigator.of(context).pop();
+
+        // 更新名字建议列表
+        setState(() {
+          _nameSuggestions = result.nameSuggestions;
+          
+          // 如果有建议，自动选择第一个
+          if (_nameSuggestions.isNotEmpty) {
+            _selectedNameSuggestion = _nameSuggestions[0];
+            _nameController.text = _nameSuggestions[0];
+          }
+          
+          // 如果有优化后的描述，更新描述输入框
+          if (result.optimizedDescription.isNotEmpty) {
+            _descriptionController.text = result.optimizedDescription;
+          }
+          
+          // 更新参数
+          _params = result.parameters;
+          _expertiseAreas = result.parameters.expertiseAreas;
+        });
+
         print('[AI生成] 生成完成');
+        print('[AI生成] 名字建议: $_nameSuggestions');
+        print('[AI生成] 选中的名字: $_selectedNameSuggestion');
+        if (result.optimizedDescription.isNotEmpty) {
+          print('[AI生成] 已更新角色介绍');
+        }
         print('[AI生成] 专业领域: $_expertiseAreas');
         print('[AI生成] 开放性: ${_params.openness}');
         print('[AI生成] 理性度: ${_params.rationality}');
         print('[AI生成] 社交能量: ${_params.socialEnergy}');
         print('[AI生成] 共情能力: ${_params.empathy}');
         print('[AI生成] 创造力: ${_params.creativity}');
+        if (result.reasoning.isNotEmpty) {
+          print('[AI生成] AI分析: ${result.reasoning}');
+        }
 
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('参数生成完成！')),
+          SnackBar(content: Text('参数生成完成！${_nameSuggestions.isNotEmpty ? '（已生成 ${_nameSuggestions.length} 个名字建议）' : ''}')),
         );
       }
     } catch (e) {
       if (mounted) {
         Navigator.of(context).pop();
         print('[AI生成] 生成失败: $e');
-        _showErrorDialog('生成失败', '调用AI时发生错误：$e');
+
+        // 显示错误对话框
+        if (e is AIGenerationException) {
+          _showErrorDialog(e.title, e.message);
+        } else {
+          _showErrorDialog('生成失败', '调用AI时发生错误：$e');
+        }
       }
     }
   }
@@ -1102,9 +1191,22 @@ class _AgentParameterEditorScreenState
     );
   }
 
-  void _save() {
-    final name = _nameController.text.trim();
+  void _save() async {
+    print('[保存] _save 被调用');
+    String name = _nameController.text.trim();
+    print('[保存] 名字: "$name"');
+    print('[保存] _nameSuggestions: $_nameSuggestions');
+    print('[保存] _selectedNameSuggestion: $_selectedNameSuggestion');
+
+    // 如果名字为空，但有AI建议，自动使用第一个建议
+    if (name.isEmpty && _nameSuggestions.isNotEmpty) {
+      name = _nameSuggestions[0];
+      _nameController.text = name;
+      print('[保存] 自动使用第一个名字建议: $name');
+    }
+
     if (name.isEmpty) {
+      print('[保存] 名字为空，显示错误提示');
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('请输入角色名称')),
       );
@@ -1112,21 +1214,102 @@ class _AgentParameterEditorScreenState
     }
 
     final params = _params.copyWith(expertiseAreas: _expertiseAreas);
+    print('[保存] 参数已准备: openness=${params.openness}');
 
     if (widget.agent != null) {
+      print('[保存] 更新现有角色: ${widget.agent!.id}');
       // 更新现有角色
       widget.agent!.name = name;
       widget.agent!.description = _descriptionController.text.trim();
       widget.agent!.parameters = params;
-      AgentManager.updateAgent(widget.agent!);
+      await AgentManager.updateAgent(widget.agent!);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('角色已更新')),
+        );
+      }
     } else {
-      // 返回新参数给创建页面
-      Navigator.of(context).pop(AgentCreationResult(
+      print('[保存] 创建新角色...');
+      // 直接创建角色
+      final personality = params.toPersonalityTraits();
+      final agent = await AgentManager.createAgent(
         name: name,
         description: _descriptionController.text.trim(),
-        parameters: params,
-      ));
+        personality: personality,
+      );
+      
+      if (mounted) {
+        if (agent != null) {
+          print('[保存] ✅ 角色创建成功: ${agent.id}');
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('角色 "$name" 创建成功')),
+          );
+        } else {
+          print('[保存] ❌ 角色创建失败');
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('角色创建失败')),
+          );
+        }
+        // 返回上一页
+        Navigator.of(context).pop();
+      }
     }
+    print('[保存] _save 完成');
+  }
+}
+
+/// AI生成中对话框 - 支持实时进度显示
+class _AIGeneratingDialog extends StatefulWidget {
+  final VoidCallback onCancel;
+
+  const _AIGeneratingDialog({required this.onCancel});
+
+  @override
+  State<_AIGeneratingDialog> createState() => _AIGeneratingDialogState();
+}
+
+class _AIGeneratingDialogState extends State<_AIGeneratingDialog> {
+  String _statusMessage = '正在准备生成...';
+
+  @override
+  void initState() {
+    super.initState();
+    // 延迟一下再显示，让对话框先渲染
+    Future.delayed(const Duration(milliseconds: 100), () {
+      if (mounted) {
+        setState(() {
+          _statusMessage = '正在构建生成提示词...';
+        });
+      }
+    });
+  }
+
+  void updateStatus(String message) {
+    if (mounted) {
+      setState(() {
+        _statusMessage = message;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('AI智能生成'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(_statusMessage),
+          const SizedBox(height: 16),
+          const LinearProgressIndicator(),
+          const SizedBox(height: 16),
+          TextButton(
+            onPressed: widget.onCancel,
+            child: const Text('取消'),
+          ),
+        ],
+      ),
+    );
   }
 }
 

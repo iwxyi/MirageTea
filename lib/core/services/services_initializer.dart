@@ -4,6 +4,9 @@ import 'package:mirage_tea/core/managers/chat_group_manager.dart';
 
 /// 服务初始化器 - 应用启动时初始化所有服务
 class ServicesInitializer {
+  /// 私有构造函数，防止实例化
+  ServicesInitializer._();
+
   /// 初始化所有服务
   static Future<void> initialize() async {
     try {

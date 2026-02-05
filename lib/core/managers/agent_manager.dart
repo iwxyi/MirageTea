@@ -85,7 +85,7 @@ class AgentManager {
   }
 
   /// 创建AI角色
-  static Future<AIAgent> createAgent({
+  static Future<AIAgent?> createAgent({
     required String name,
     String avatar = '',
     String description = '',
@@ -93,6 +93,11 @@ class AgentManager {
     String? groupId,
     String? topic,
   }) async {
+    if (_agentBox == null) {
+      print('[AgentManager] ❌ 创建失败: _agentBox 为空，AgentManager 未初始化');
+      return null;
+    }
+
     final id = const Uuid().v4();
     final agent = AIAgent(
       id: id,
@@ -102,10 +107,12 @@ class AgentManager {
       personality: personality,
     );
 
-    await _agentBox?.put(id, _agentToMap(agent));
+    final map = _agentToMap(agent);
+    await _agentBox!.put(id, map);
     _refreshAgents();
 
-    print('[AgentManager] 创建角色: $name (ID: $id)');
+    print('[AgentManager] ✅ 创建角色成功: $name (ID: $id)');
+    print('[AgentManager]   - 角色数量: ${_agentBox?.length ?? 0}');
     return agent;
   }
 
